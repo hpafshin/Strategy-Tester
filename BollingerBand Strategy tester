@@ -1,0 +1,71 @@
+# Importing required libraries
+import pandas as pd
+import pathlib
+from statistics import mean
+
+# Defining indicator functions    
+def bollinger_band (period):
+    df[f'MA{period}'] = df.rolling (window=period)['Close'].mean()
+    df['Upper'] = df[f'MA{period}'] + 2* (df.rolling (window=period)['Close'].std(ddof=0))
+    df['Lower'] = df[f'MA{period}'] - 2* (df.rolling (window=period)['Close'].std(ddof=0))
+    return df
+
+final_list =[]
+# Reading every file in a folder with at least 20 records
+path = pathlib.Path('D:/TSE Data/ForPython')
+for file in path.iterdir():
+    deposit_state = 0
+    number_of_transactions = 0
+    money = 10000000
+    MaxMoney = 10000000
+    shares = 0
+    win = 0
+    rewardtorisk = []
+    ContinuesLoss = 0
+    MaxDD = 0
+    MaxCL = 0
+    df = pd.read_csv (file)
+    if len(df)<21:
+        pass
+    else:    
+        bollinger_band (20)
+    # Generating Strategy with buy and sell signals
+        for i in range (20,len(df)-1):
+            if df.loc [i,'Close']>df.loc [i,'Upper'] and deposit_state == 0:
+                BuyPrice = df.loc[i,'Close']
+                deposit_state = 1
+                shares = int(money / BuyPrice)
+                money -= shares * BuyPrice
+            elif df.loc [i,'Low']<df.loc [i,'Lower'] and deposit_state == 1:
+                SellPrice = df.loc[i,'Close']
+                number_of_transactions += 1
+                deposit_state = 0
+                money += shares * SellPrice
+                shares = 0
+                rewardtorisk.append (SellPrice/BuyPrice)
+                if SellPrice > BuyPrice:
+                    win += 1
+                    lose_again = False
+                    MaxMoney = money
+                else:
+                    dd = (1-(money/MaxMoney))
+                    MaxDD = dd if dd > MaxDD else MaxDD
+                    if lose_again == False:
+                        ContinuesLoss = 1
+                        lose_again = True 
+                    else:
+                        ContinuesLoss += 1
+                        MaxCL = ContinuesLoss if ContinuesLoss > MaxCL else MaxCL
+
+        if number_of_transactions > 0:
+            money += shares * df.loc[i,'Close']
+            win_rate = win / number_of_transactions
+            strategy_efficiency = money/10000000
+            reward = list(filter (lambda x : x>1, rewardtorisk))
+            risk = list(filter (lambda x : x<1, rewardtorisk))
+            r2r = (1-mean(reward))/(mean(risk)-1) if len(reward) > 0 and len(risk) >0 else 0
+            temp_list = [df.loc[1,'Symbol'], strategy_efficiency, number_of_transactions, win_rate, len(df), r2r, MaxCL, MaxDD]
+            final_list.append (temp_list)
+# Exporting result to an excel file
+data_frame = pd.DataFrame (final_list, columns=['Symbol','Efficeincy','TransactionCount','winRate', 'DaysCount','Reward2Risk', 'MaxCL', 'MaxDD'])
+data_frame.to_excel ('BollingerBandBacktest.xlsx',sheet_name='Parameters')

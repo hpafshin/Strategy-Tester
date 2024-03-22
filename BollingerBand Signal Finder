@@ -1,0 +1,60 @@
+# Importing required libraries
+import pandas as pd
+import pathlib
+import io
+import sys
+
+# Reading every file in a folder with at least 29 records
+path = pathlib.Path('D:/TSE Data')
+final_list =[]
+for file in path.iterdir():
+    temp_list = [file]
+    df = pd.read_csv (file)
+    if len(df)<30:
+        pass
+    else:
+        def get_csv_tail(filepath, max_rows=1):
+            with open(filepath, "rb") as f:
+                first = f.readline().decode(sys.stdout.encoding)  # Read the first line.
+                f.seek(-2, 2)                                     # Jump to the second last byte.
+                count = 0
+                while count < max_rows:                           # Until we've gone max_rows back
+                    try:
+                        while f.read(1) != b"\n":                 # Until EOL is found...
+                            f.seek(-2, 1)                         # ...jump back the read byte plus one more.
+                    except IOError:
+                        f.seek(-1, 1)
+                        if f.tell() == 0:
+                            break
+                    count = count + 1
+                    f.seek(-2, 1)                                 # ...jump back the read byte plus one more.
+                f.seek(1, 1)                                      # move forward one byte
+                tail = f.read().decode(sys.stdout.encoding)       # We found our spot; read from here through to the end of the file.
+                f.close()
+                        
+            return io.StringIO(first + tail)
+        df = pd.read_csv(get_csv_tail(file, max_rows=30))
+        last = len (df) - 1
+        name = df.loc[last,'Symbol']
+        temp_list.append (name)
+        
+# Defining indicators functions    
+        def bollinger_band (period):
+            df[f'MA{period}'] = df.rolling (window=period)['Close'].mean()
+            df['Upper'] = df[f'MA{period}'] + 2* (df.rolling (window=period)['Close'].std(ddof=0))
+            df['Lower'] = df[f'MA{period}'] - 2* (df.rolling (window=period)['Close'].std(ddof=0))
+            return df
+        bollinger_band (20)
+# Finding strategy Signal
+        if df.loc [last,'Close']>df.loc [last,'Upper']:
+            if df.loc [last-1,'Close']<=df.loc [last-1,'Upper']:
+                final_list.append (temp_list)
+        
+# Exporting result to a .csv file
+data_frame = pd.DataFrame (final_list)
+if len (data_frame) >= 1:
+    data_frame.to_excel ('BollingerBandSignal.xlsx', sheet_name='BuySignals')
+    print ("There have been %s 'Buy Signals' and they've exported successfully" % len (final_list))
+else:
+    print ('There was no signal')
+
